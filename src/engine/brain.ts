@@ -34,6 +34,9 @@ export interface Params {
   useMarket: number; // 1: per-letter, per-phase win chance and price from the market table
   resMult: number; // reservation price for needed letters, × the median competing bid
   matchAdapt: number; // 0..1: how far to trust this match's observed prices over the table
+  budgetFeas: number; // >0: discount targets whose missing letters cost more than we can pay (exponent)
+  incomeAllow: number; // coins of future income counted as spendable when checking affordability
+  leaveHV: number; // leave value of an unplanned high-value letter (face >= 4), × its usual value
 }
 
 export const DEFAULT_PARAMS: Params = {
@@ -58,6 +61,9 @@ export const DEFAULT_PARAMS: Params = {
   useMarket: 0,
   resMult: 1.3,
   matchAdapt: 0.5,
+  budgetFeas: 0,
+  incomeAllow: 0,
+  leaveHV: 1,
 };
 
 export interface View {
@@ -89,6 +95,8 @@ export class Brain {
   /** Expected price per letter; the live bot recalibrates this from recent auctions. */
   price: Float64Array = Float64Array.from(MARKET_PRICE);
   market: Market | null = null;
+  /** Leave value per held letter: `leave` × face, discounted for awkward high-value letters. */
+  private lv = new Float64Array(26);
 
   /** Use the per-letter, per-phase market table (when `useMarket` is on). */
   setMarketTable(table: MarketTable) {
@@ -102,7 +110,9 @@ export class Brain {
   constructor(
     readonly lex: Lexicon,
     readonly p: Params = DEFAULT_PARAMS,
-  ) {}
+  ) {
+    for (let c = 0; c < 26; c++) this.lv[c] = p.leave * FACE[c] * (FACE[c] >= 4 ? p.leaveHV : 1);
+  }
 
   /**
    * Shadow price of a coin, in points. Unspent coins are worth nothing at the
@@ -150,6 +160,10 @@ export class Brain {
       const sc = Math.pow(v.priceScale ?? 1, p.matchAdapt);
       price = mk.cost.map((x) => x * sc);
     }
+    const lv = this.lv;
+    const feas = p.budgetFeas;
+    const budget = Math.max(0, v.balance) + p.incomeAllow;
+    const sc0 = p.priceMult;
     let rackMask = 0;
     for (let c = 0; c < 26; c++) if (rack[c] > 0) rackMask |= 1 << c;
     const absent = ~rackMask;
@@ -184,12 +198,17 @@ export class Brain {
           }
           q *= acq[c * 5 + d];
           cost += d * price[c];
-          usedLeave += have * FACE[c];
-        } else usedLeave += run * FACE[c];
+          usedLeave += have * lv[c];
+        } else usedLeave += run * lv[c];
       }
       if (!ok || q <= 0) continue;
       if (p.qPow !== 1) q = Math.pow(q, p.qPow);
-      const gain = q * (lex.reward[i] - lam * p.priceMult * cost - p.leave * usedLeave);
+      if (feas > 0 && cost > 0) {
+        // can we actually pay for the missing letters?
+        const afford = budget / (cost * sc0);
+        if (afford < 1) q *= Math.pow(afford, feas);
+      }
+      const gain = q * (lex.reward[i] - lam * p.priceMult * cost - usedLeave);
       if (gain <= floor) continue;
       best.push({ gain, idx: i });
       if (best.length > top * 4) {
@@ -205,8 +224,8 @@ export class Brain {
 
   private leaveValue(rack: Rack): number {
     let s = 0;
-    for (let i = 0; i < 26; i++) s += rack[i] * FACE[i];
-    return this.p.leave * s;
+    for (let i = 0; i < 26; i++) s += rack[i] * this.lv[i];
+    return s;
   }
 
   /** How many of each held letter target `idx` would use. */
@@ -267,7 +286,14 @@ export class Brain {
     const lam = this.lambda(v);
     const before = this.value(v.rack, v, lam);
     v.rack[letter]++;
-    const after = this.value(v.rack, v, lam);
+    let afterView = v;
+    if (this.p.budgetFeas > 0) {
+      // judge the bigger rack with the money we'd have left after paying for it
+      const mk = this.marketNow(v);
+      const est = mk ? mk.cost[letter] : this.price[letter];
+      afterView = { ...v, balance: Math.max(0, v.balance - est) };
+    }
+    const after = this.value(v.rack, afterView, lam);
     v.rack[letter]--;
     const dv = this.p.bidMult * (after - before);
     if (dv <= 0) return 0;
