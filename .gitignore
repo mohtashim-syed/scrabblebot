@@ -1,0 +1,13 @@
+# Bot credentials — never commit
+.token-*
+.env
+.env.*
+
+node_modules/
+# links to downloaded match history (fetch with tools/fetch.py)
+data
+data2
+data3
+data*/
+*.log
+.DS_Store

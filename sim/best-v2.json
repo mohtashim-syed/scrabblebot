@@ -1,0 +1,20 @@
+{
+  "minTarget": 5,
+  "maxTarget": 8,
+  "maxNeed": 4,
+  "winProb": 0.445,
+  "priceMult": 0.916,
+  "leave": 0.514,
+  "lambda0": 0.3,
+  "spendRate": 1.793,
+  "lambdaPow": 1.463,
+  "lambdaMin": 0.03,
+  "midPlayLen": 7,
+  "secondTarget": 0.831,
+  "endgameF": 0,
+  "liquidity": 0.19,
+  "bidMult": 0.966,
+  "softTau": 1.935,
+  "budgetCurve": 0,
+  "qPow": 1
+}

@@ -1,0 +1,15 @@
+import { LEX } from "./sim.ts";
+import { Brain, DEFAULT_PARAMS } from "../src/engine/brain.ts";
+import { rackFrom, bestPartition, BAG } from "../src/engine/lexicon.ts";
+const b = new Brain(LEX, DEFAULT_PARAMS);
+const v = (r: string, F: number) => ({ rack: rackFrom(r), balance: 80, unseen: Float64Array.from(BAG), usableFuture: F });
+let t = performance.now();
+for (let i = 0; i < 50; i++) b.value(rackFrom("AERTSIN".slice(0, 3 + (i % 5))), v("", 40));
+console.log("value mid ms", ((performance.now() - t) / 50).toFixed(2));
+t = performance.now();
+for (let i = 0; i < 20; i++) bestPartition(LEX, rackFrom("AEIRSTNLODEGU"), 60);
+console.log("partition13 ms", ((performance.now() - t) / 20).toFixed(2));
+t = performance.now();
+for (let i = 0; i < 20; i++) b.plays(v("AERTSINLDO", 30));
+console.log("plays ms", ((performance.now() - t) / 20).toFixed(2), b.plays(v("AERTSINLDO", 30)).map(i=>LEX.word[i]));
+console.log("alphagrams", LEX.n, LEX.lenRange(5, 8));
