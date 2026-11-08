@@ -120,6 +120,25 @@ on): hold for 7-letter words rather than cashing 5–6s mid-game; truthful biddi
 with one coin value beats a concave budget curve; a static price table beats raw
 live recalibration.
 
+## v3: opponent-aware market model
+
+Instead of a flat win chance and an average price for every letter, v3 uses
+`src/engine/market-table.json`: for each letter and each third of the match, the
+distribution of the highest competing bid in ~600 recent live matches
+(`npm run sim:market -- <dataDir> <skipNewest> <matches>` rebuilds it). Needed
+letters get a win chance and expected price at a reservation of ~1.7× the
+median competing bid.
+
+On the newest 150 matches, which tuning never saw (3 seeds):
+
+| | Avg score | Avg place (of 6) | Wins |
+|---|---|---|---|
+| v1 | 81.0 | 3.16 | 12% |
+| **v3** | **84.7** | **2.95** | **19%** |
+| real bot in that seat | 76.0 | 3.17 | 22% |
+
+Tuning now optimises finishing place (what ratings use), not average score.
+
 ## Credits
 
 Built for [clockworklabs/scrabblebot](https://github.com/clockworklabs/scrabblebot)

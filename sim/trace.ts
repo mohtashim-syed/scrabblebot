@@ -1,4 +1,5 @@
 // Trace one replay game move by move: tsx sim/trace.ts <dataDir> <matchIndexFromEnd> [params]
+import * as fs from "node:fs";
 import { LEX, loadHistory, rng } from "./sim.ts";
 import { Brain, DEFAULT_PARAMS } from "../src/engine/brain.ts";
 import { Player } from "../src/engine/player.ts";
@@ -6,7 +7,9 @@ import { rackString } from "../src/engine/lexicon.ts";
 const hist = loadHistory(process.argv[2], 400);
 const h = hist[hist.length - 1 - Number(process.argv[3] ?? 0)];
 const params = { ...DEFAULT_PARAMS, ...JSON.parse(process.argv[4] ?? "{}") };
-const p = new Player(new Brain(LEX, params), "ME");
+const brain = new Brain(LEX, params);
+brain.setMarketTable(JSON.parse(fs.readFileSync("src/engine/market-table.json", "utf8")));
+const p = new Player(brain, "ME");
 const r = rng(5);
 const pool = [...h.start];
 const s5: number[] = [];
