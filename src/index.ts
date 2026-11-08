@@ -66,6 +66,9 @@ let bidOn = new Set<bigint>(); // auctions we've bid on
 let pending: { word: string; reward: number }[] = [];
 let actScheduled = false;
 let ready = false; // initial rows loaded; inserts after this are live events
+// Newest match we already had at startup. The SDK can replay old rows as
+// inserts after the subscription applies, so only newer matches are new.
+let bootMax = -1n;
 let lobbyTimer: NodeJS.Timeout | null = null;
 
 function schedule() {
@@ -239,6 +242,7 @@ function bootstrap() {
       // Resume a running match if we restarted mid-game; otherwise queue up.
       const mine = [...conn.db.matchParticipant.iter()].filter((p) => p.botId === myBotId);
       const latest = mine.reduce<bigint | null>((a, p) => (a === null || p.matchId > a ? p.matchId : a), null);
+      bootMax = latest ?? -1n;
       if (latest !== null) {
         conn
           .subscriptionBuilder()
@@ -313,7 +317,7 @@ function onConnect(c: DbConnection, identity: Identity, token: string) {
   conn.db.matchParticipant.onUpdate(() => schedule());
   conn.db.matchParticipant.onInsert((_c, p) => {
     // Initial subscription rows are our past matches; only live inserts mean a new match.
-    if (!ready || p.botId !== myBotId) return;
+    if (!ready || p.botId !== myBotId || p.matchId <= bootMax) return;
     const ms = conn.db.matchState.id.find(p.matchId);
     if (!ms || ms.status.tag === "Running") enterMatch(p.matchId);
   });
@@ -360,6 +364,7 @@ function connect(delayMs = 0) {
     matchSub = null;
     myBotId = null;
     ready = false;
+    bootMax = -1n;
     DbConnection.builder()
       .withUri(HOST)
       .withDatabaseName(DB_NAME)
