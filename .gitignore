@@ -8,6 +8,6 @@ node_modules/
 data
 data2
 data3
-data*/
+data[0-9]*
 *.log
 .DS_Store
